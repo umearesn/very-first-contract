@@ -98,9 +98,9 @@ contract RockPaperScissorsContract {
 
         // Find player data
         PlayerTurn storage commitChoice = playerTurns[playerIndex];
-
+        
         // Check the hash to ensure the commitment is correct
-        require(keccak256(abi.encodePacked(msg.sender, choice, blindingFactor)) == commitChoice.commitment, "Invalid hash");
+        require(sha256(abi.encodePacked(msg.sender, uint(choice), blindingFactor)) == commitChoice.commitment, "Invalid hash");
 
         // Update choice if correct
         commitChoice.choice = choice;
