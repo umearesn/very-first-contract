@@ -2,7 +2,8 @@
 pragma solidity ^0.8.9;
 
 // Uncomment this line to use console.log
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract RockPaperScissorsContract {
 
@@ -98,7 +99,7 @@ contract RockPaperScissorsContract {
 
         // Find player data
         PlayerTurn storage commitChoice = playerTurns[playerIndex];
-        
+
         // Check the hash to ensure the commitment is correct
         require(sha256(abi.encodePacked(msg.sender, uint(choice), blindingFactor)) == commitChoice.commitment, "Invalid hash");
 
