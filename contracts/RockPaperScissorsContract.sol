@@ -11,10 +11,6 @@ contract RockPaperScissorsContract {
         require(playerTurns[0].playerAddress == player || playerTurns[1].playerAddress == player);
     }
 
-    modifier OnlyByPlayers(address player) {
-        require(playerTurns[0].playerAddress == player || playerTurns[1].playerAddress == player);
-    }
-
     // Initialisation args
     uint public bet;
     uint public deposit;
