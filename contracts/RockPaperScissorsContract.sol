@@ -6,6 +6,15 @@ pragma solidity ^0.8.9;
 
 contract RockPaperScissorsContract {
 
+    // Modifiers
+    modifier OnlyByPlayers(address player) {
+        require(playerTurns[0].playerAddress == player || playerTurns[1].playerAddress == player);
+    }
+
+    modifier OnlyByPlayers(address player) {
+        require(playerTurns[0].playerAddress == player || playerTurns[1].playerAddress == player);
+    }
+
     // Initialisation args
     uint public bet;
     uint public deposit;
@@ -73,7 +82,7 @@ contract RockPaperScissorsContract {
     }
 
 
-    function reveal(Choice choice, bytes32 blindingFactor) public {
+    function reveal(Choice choice, bytes32 blindingFactor) public OnlyByPlayers(msg.sender) {
         // Only run during reveal stages
         require(stage == GameStage.FirstReveal || stage == GameStage.SecondReveal, "Not at reveal stage");
         // Only accept valid choices
@@ -112,7 +121,7 @@ contract RockPaperScissorsContract {
             stage == GameStage.FirstReveal ? GameStage.SecondReveal : GameStage.Payout;
     }
 
-    function distribute() public {
+    function distribute() public OnlyByPlayers(msg.sender) {
         // To distribute we need:
             // a) To be in the distribute stage OR
             // b) Still in the second reveal stage but past the deadline
