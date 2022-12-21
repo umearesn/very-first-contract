@@ -9,7 +9,8 @@ contract RockPaperScissorsContract {
 
     // Modifiers
     modifier OnlyByPlayers(address player) {
-        require(playerTurns[0].playerAddress == player || playerTurns[1].playerAddress == player);
+        require((playerTurns[0].playerAddress == player || playerTurns[1].playerAddress == player
+        || playerTurns[0].playerAddress == address(0) && playerTurns[1].playerAddress == address(0)), "Player do not included in the current game");
         _;
     }
 
