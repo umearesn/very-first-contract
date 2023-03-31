@@ -40,6 +40,7 @@ contract ZPGContract {
     function createHero(uint256 seed) public payable {
         
         require(stage == GameStage.CreatedZero || stage == GameStage.CreatedOne, "Both heroes created");
+        require(msg.value > participationFee, "Bet is too small");
 
         // Зафиксировали индекс
         uint heroIndex = 
