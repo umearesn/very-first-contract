@@ -8,162 +8,142 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 contract ZPGContract {
 
     struct CharacterAttributes {
-        string name;
+        address ownerAddress;
         uint256 hp;
-        uint256 maxHp;
-        uint256 attackDamage;
-        uint256 characterBalance;
-        uint256 lastBattle;
+        uint256 attackPoints;
+        uint256 balance;
     }
 
-    // CharacterAttributes[] personHeroes;
-    mapping(address => CharacterAttributes) public personHeroes;
-    
 
-    constructor() {
-
+    enum GameStage {
+        CreatedZero,
+        CreatedOne,
+        CreatedTwo
     }
 
-    function createHero(uint seed, string calldata name) public payable {
-        address add = payable(msg.sender);
+    // Initialisation args
+    uint public revealSpan;
+    uint public nextFight;
+    uint256 public buffLimit;
+    uint256 public participationFee;
+    GameStage public stage = GameStage.CreatedZero;
 
-        bool characterExists = ifCharacterExists(add);
-        require(characterExists == false, 'Hero already created');
+    CharacterAttributes[2] personHeroesList;
+    mapping(address => uint256) public personHeroes;
 
-        uint256 balance = msg.value;
-        uint256 currentPoints = balance / 10000;
+    constructor(uint _revealSpan, uint256 _buffLimit) {
+        nextFight = block.number + _revealSpan;
+        buffLimit = _buffLimit;
+        participationFee = 100;
+    }
+
+    function createHero(uint256 seed) public payable {
+        
+        require(stage == GameStage.CreatedZero || stage == GameStage.CreatedOne, "Both heroes created");
+
+        // Зафиксировали индекс
+        uint heroIndex = 
+            stage == GameStage.CreatedZero ? 0 : 1;
+
+        if(heroIndex == 1) {
+            require(personHeroesList[0].ownerAddress != msg.sender, "You already created player!");
+        }
+        
+        uint256 currentPoints = msg.value - participationFee;
 
         uint256 hp = getRandom(currentPoints, seed) + 1;
         uint256 attackPoints = getRandom(currentPoints - hp, seed) + 1;
         
-        CharacterAttributes memory newHero = CharacterAttributes({
-          name: name,
-          hp: hp, 
-          maxHp: hp,
-          attackDamage: attackPoints,
-          characterBalance: balance,
-          lastBattle: block.timestamp});
+        personHeroesList[heroIndex] = CharacterAttributes(msg.sender, hp, attackPoints, currentPoints);
 
-        personHeroes[add] = newHero;
+        // Чтобы драка не была доступна сразу после регистрации - сделаем так
+        if(block.number < nextFight){
+            nextFight = block.number + revealSpan;
+        }
+       
+        stage = 
+            stage == GameStage.CreatedZero ? GameStage.CreatedOne : GameStage.CreatedTwo;
     }
 
-    function attack(address opponentAddress, uint seed) public {
-        address add = payable(msg.sender);
+    // Атака одного пользователя другим
+    function attack(uint seed) public {
+        require(stage == GameStage.CreatedTwo && nextFight <= block.number, "Too early to attack!");
+        require(personHeroesList[0].ownerAddress == msg.sender || personHeroesList[1].ownerAddress == msg.sender , "You do not take part!");
 
-        CharacterAttributes memory hero = getCharacter(add);
-        CharacterAttributes memory opponent = getCharacter(opponentAddress);
-      
-        uint256 initHp = hero.hp + (block.timestamp - hero.lastBattle) / 60000;
-        require(initHp > 0, 'HP is 0, cannot attack');
+        CharacterAttributes storage hero = 
+            personHeroesList[0].ownerAddress == msg.sender ? personHeroesList[0] : personHeroesList[1];
+        CharacterAttributes storage opponent = 
+            personHeroesList[0].ownerAddress == msg.sender ? personHeroesList[1] : personHeroesList[0];
 
-        uint256 initOpponentHp = opponent.hp + (block.timestamp - opponent.lastBattle) / 60000;
-        require(initOpponentHp > 0, 'Opponent HP is 0, cannot attack');
+        uint256 initHp = hero.hp;
+        uint256 initOpponentHp = opponent.hp;
 
+        // имитируем битву
         while (initHp > 0 && initOpponentHp > 0){
-          uint256 turnAttack = (1 + (getRandom(20, seed) - 10) / 100) * hero.attackDamage;
+          uint256 turnAttack = getRandom(buffLimit, seed) + hero.attackPoints;
           initOpponentHp = max(0, initOpponentHp - turnAttack);
 
-          uint256 opponentTurnAttack = (1 + (getRandom(20, seed) - 10) / 100) * opponent.attackDamage;
+          uint256 opponentTurnAttack = getRandom(buffLimit, seed) + opponent.attackPoints;
           initHp = max(0, initHp - opponentTurnAttack);
         }
 
+        uint256 prize = hero.balance + opponent.balance;
+
+        // проигравший выбывает
         bool playerWon = hero.hp > 0;
 
-        if(playerWon == true) {
-            uint256 wonAmount = (opponent.characterBalance / 2);
-
-            personHeroes[add] = CharacterAttributes(
-              hero.name,
-              initHp / 2,
-              hero.maxHp,
-              hero.attackDamage,
-              hero.characterBalance + wonAmount,
-              block.timestamp);
-
-            personHeroes[opponentAddress] = CharacterAttributes(
-              opponent.name,
-              initOpponentHp / 2,
-              opponent.maxHp,
-              opponent.attackDamage,
-              opponent.characterBalance - wonAmount,
-              block.timestamp);
+        delete personHeroesList;
+        stage = GameStage.CreatedOne;
+        nextFight = block.number + revealSpan;
+        
+        if(playerWon) {
+            personHeroesList[0] = CharacterAttributes(hero.ownerAddress, hero.hp + getRandom(buffLimit, seed), hero.attackPoints + getRandom(buffLimit, seed), prize);
         } else {
-            uint256 wonAmount = (hero.characterBalance / 2);
-
-            personHeroes[opponentAddress] = CharacterAttributes(
-              opponent.name,
-              initOpponentHp / 2,
-              opponent.maxHp,
-              opponent.attackDamage,
-              opponent.characterBalance + wonAmount,
-              block.timestamp);
-
-            personHeroes[add] = CharacterAttributes(
-              hero.name,
-              initHp / 2,
-              hero.maxHp,
-              hero.attackDamage,
-              hero.characterBalance - wonAmount,
-              block.timestamp);
+            personHeroesList[0] = CharacterAttributes(opponent.ownerAddress, opponent.hp + getRandom(buffLimit, seed), opponent.attackPoints + getRandom(buffLimit, seed), prize);
         }
     }
 
-
     function buff(uint seed) public payable {
-        address add = payable(msg.sender);
+        require(nextFight > block.number, "Only figth is possible, too late to buff!");
+        require(personHeroesList[0].ownerAddress == msg.sender || personHeroesList[1].ownerAddress == msg.sender , "You do not take part!");
 
-        CharacterAttributes memory hero = getCharacter(add);
+        uint256 heroIndex = 
+            personHeroesList[0].ownerAddress == msg.sender ? 0 : 1;
 
-        uint256 currentPoints = msg.value / 100000;
+        CharacterAttributes storage hero = personHeroesList[heroIndex];
 
-        uint256 hpBuff = getRandom(currentPoints, seed);
-        uint256 attackBuff = getRandom(currentPoints, seed);
+        uint256 addedPoints = msg.value;
+
+        uint256 hpBuff = getRandom(addedPoints, seed);
+        uint256 attackBuff = getRandom(addedPoints - hpBuff, seed);
         
-        personHeroes[add] = CharacterAttributes(
-          hero.name,
-          hero.hp + hpBuff, 
-          hero.maxHp + hpBuff,
-          hero.attackDamage + attackBuff,
-          hero.characterBalance,
-          hero.lastBattle);
+        personHeroesList[heroIndex] = CharacterAttributes(msg.sender, hero.hp + hpBuff, hero.attackPoints + attackBuff, hero.balance + addedPoints);
     }
 
-    function extract(uint256 extractedAmount) public {
-        // извлечение средств из аккаунта
-        address add = payable(msg.sender);
-        CharacterAttributes memory hero = getCharacter(add);
+    // выход из игры
+    function quitGame() public {
+        require(stage == GameStage.CreatedOne, "Quit allowed only when opponent is not found!");
+        require(personHeroesList[0].ownerAddress == msg.sender || personHeroesList[1].ownerAddress == msg.sender , "You do not take part!");
 
-        require(extractedAmount < hero.characterBalance, "Cannot extract more than on balance");
+        uint256 heroIndex = 
+            personHeroesList[0].ownerAddress == msg.sender ? 0 : 1;
+
+        CharacterAttributes storage hero = personHeroesList[heroIndex];
 
         // Send the payouts
-        (bool success, ) = add.call{value: extractedAmount}("");
-        require(success, 'Payout failed');
+        (bool success, ) = msg.sender.call{value: hero.balance}("");
+        require(success, "Payout failed");
 
-        personHeroes[add] = CharacterAttributes(
-          hero.name,
-          hero.hp,
-          hero.maxHp,
-          hero.attackDamage,
-          hero.characterBalance - extractedAmount,
-          hero.lastBattle);
+        delete personHeroesList;
+        stage = GameStage.CreatedZero;
+        nextFight = block.number + revealSpan;
     }
 
     function max(uint256 a, uint256 b) private pure returns (uint256) {
         return a >= b ? a : b;
     }
     
-    function getRandom(uint256 limit, uint256 seed) private view returns(uint256){
+    function getRandom(uint256 limit, uint256 seed) public view returns(uint256){
         return uint(keccak256(abi.encodePacked(block.timestamp, block.prevrandao, msg.sender, seed))) % limit;
-    }
-
-    function getCharacter(address add) private view returns(CharacterAttributes memory){
-        CharacterAttributes memory hero = personHeroes[add];
-        require(hero.maxHp == 0, 'Hero not found');
-        return hero;
-    }
-
-    function ifCharacterExists(address add) private view returns(bool){
-        CharacterAttributes memory hero = personHeroes[add];
-        return hero.maxHp != 0;
     }
 }
